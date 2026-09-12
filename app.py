@@ -55,9 +55,7 @@ st.markdown("<div class='hero-header'><h1>🚀 AmazonHelp AI Support Agent</h1><
 tab1, tab2, tab3 = st.tabs(["💬 Live Agent", "📊 Model Analytics", "⚙️ API Demo"])
 
 # --- TAB 1: Live Agent ---
-with tab1:
-    st.markdown("### Test the AI Classifier")
-    
+# ─── Prediction Logic ──────────────────────────────────────────────────────────
 def predict_intent(text, clf, vectorizer):
     vec = vectorizer.transform([text])
     intent = clf.predict(vec)[0]
