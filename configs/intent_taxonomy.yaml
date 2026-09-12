@@ -1,0 +1,81 @@
+intents:
+  - name: order_status_tracking
+    description: "Inquiries about the status of an order, when it will ship, or tracking information."
+    inclusion: "Messages asking 'where is my order', 'has my item shipped', tracking number questions."
+    exclusion: "Items that have already been marked as delivered but are missing (use delivery_issue)."
+    examples:
+      - "When is my package going to ship?"
+      - "Can I get an update on order #12345?"
+    similar_to: "delivery_issue"
+    priority: "Medium"
+
+  - name: delivery_issue
+    description: "Problems with the actual delivery of a package."
+    inclusion: "Missing packages, late deliveries, delivered to wrong address, damaged packages."
+    exclusion: "Items that haven't shipped yet (use order_status_tracking)."
+    examples:
+      - "It says delivered but nothing is at my door."
+      - "My guaranteed next day delivery is late."
+    similar_to: "order_status_tracking, product_defect"
+    priority: "High"
+
+  - name: refund_return
+    description: "Questions or issues regarding returning an item or getting a refund."
+    inclusion: "Requests for refund status, how to print a return label, return policy questions."
+    exclusion: "General complaints about the product without mentioning return/refund."
+    examples:
+      - "How long does it take for a refund to process?"
+      - "I want to return this item, it doesn't fit."
+    similar_to: "account_billing"
+    priority: "Medium"
+
+  - name: account_billing
+    description: "Issues related to the user's Amazon account, login, passwords, or unauthorized charges."
+    inclusion: "Locked accounts, password resets, unrecognized charges, updating payment methods."
+    exclusion: "Prime membership questions (use prime_membership)."
+    examples:
+      - "I was charged twice for my last order."
+      - "I can't log into my account, it says password incorrect."
+    similar_to: "prime_membership, refund_return"
+    priority: "High"
+
+  - name: prime_membership
+    description: "Issues or questions specifically about Amazon Prime services."
+    inclusion: "Prime Video streaming issues, cancelling Prime, Prime subscription costs, Prime Music."
+    exclusion: "Generic delivery questions that happen to mention the word prime."
+    examples:
+      - "Prime video isn't working on my smart TV."
+      - "How do I cancel my prime membership?"
+    similar_to: "account_billing"
+    priority: "Medium"
+
+  - name: product_defect
+    description: "Complaints about the item itself being broken, defective, or not as described."
+    inclusion: "Item arrived broken, wrong item sent, defective electronics, missing parts."
+    exclusion: "Package itself was damaged in transit but item is fine (use delivery_issue)."
+    examples:
+      - "I ordered a red shirt but received a blue one."
+      - "The screen on the tablet I bought is shattered."
+    similar_to: "delivery_issue, refund_return"
+    priority: "Medium"
+
+  - name: customer_service_escalation
+    description: "Messages where the user is primarily demanding to speak to a human or escalating a complaint."
+    inclusion: "Demands for a phone number, 'call me', 'talk to a real person', generic angry complaints about service."
+    exclusion: "Actionable complaints that fit a specific category like delivery_issue."
+    examples:
+      - "Give me a phone number to call right now."
+      - "Your customer service is terrible, I want to speak to a manager."
+    similar_to: "other_unknown"
+    priority: "High"
+
+  - name: other_unknown
+    description: "Messages that do not fit the above categories, or are too vague to classify."
+    inclusion: "Thank you messages, single words ('yes', 'no'), vague complaints ('fix it')."
+    exclusion: "Any message with enough context to fit a specific category."
+    examples:
+      - "Thanks!"
+      - "Yes that worked."
+      - "Fix your website."
+    similar_to: "customer_service_escalation"
+    priority: "Low"
