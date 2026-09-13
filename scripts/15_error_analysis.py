@@ -79,6 +79,34 @@ def main():
         "- **Context Dependence**: Short tweets (e.g. 'Yes thanks') lack the semantic keywords needed by a bag-of-words model."
     ])
         
+    # Generate Failure Analysis CSV as required by final checklist
+    failure_records = []
+    for idx, row in errors.iterrows():
+        failure_cat = "Wrong Classification"
+        reason = "TF-IDF Vocabulary Mismatch or Missing Context"
+        suggestion = "Switch to Sentence-Transformers (Embeddings)"
+        
+        # Specific heuristic reasons
+        if row['predicted_intent'] == 'other_unknown':
+            reason = "Defaulted to majority class due to weak signal"
+            suggestion = "Increase class weight or use LLM router"
+        elif row['confidence'] < 0.6:
+            failure_cat = "Low Confidence Misclassification"
+            
+        failure_records.append({
+            "Input Ticket": row['customer_text'],
+            "Expected Output (Category)": row['true_intent'],
+            "Actual Output (Category)": row['predicted_intent'],
+            "Failure Category": failure_cat,
+            "Possible Reason": reason,
+            "Suggested Improvement": suggestion
+        })
+        
+    fail_csv_path = Path("reports/failure_analysis.csv")
+    fail_df = pd.DataFrame(failure_records)
+    fail_df.to_csv(fail_csv_path, index=False)
+    print(f"[OK] Failure analysis CSV saved to {fail_csv_path}")
+
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(md), encoding="utf-8")
     print(f"[OK] Error analysis report saved to {report_path}")

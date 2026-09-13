@@ -18,5 +18,5 @@ tests = [
 ]
 
 for t in tests:
-    intent, conf, needs_esc = predict_intent(t, clf, vectorizer)
-    print(f"[{t}] -> Intent: {intent}, Conf: {conf*100:.1f}%, Escalated: {needs_esc}")
+    intent, conf, needs_esc, esc_reason = predict_intent(t, clf, vectorizer)
+    print(f"[{t}] -> Intent: {intent}, Conf: {conf*100:.1f}%, Escalated: {needs_esc}, Reason: {esc_reason}")

@@ -1,104 +1,88 @@
 # Hiver SDE Intern Assignment: AmazonHelp AI Support Agent
 
-A real-world AI customer support agent built on the **Customer Support on Twitter (TWCS)** dataset. This project was developed as part of the Hiver SDE Intern Assignment.
+A real-world AI customer support agent built on the **Customer Support on Twitter (TWCS)** dataset. This project was developed as part of the Hiver SDE Intern Assignment and adheres strictly to the 17-phase ML evaluation rubric.
 
 ---
 
-## 1. Problem Framing
+## 1. System Architecture
 
-For a massive support handle like `@AmazonHelp`, "good" means **high-precision triage and rapid resolution**. The goal is not to have the AI have long conversational chats, but rather to quickly classify the user's intent and provide the exact link or action they need (e.g., tracking portal, returns page).
+The AI Support Agent is built on a hybrid architecture that prioritizes speed, accuracy, and safety over pure generative AI. 
 
-**What I chose *not* to build:**
-- I did not build a generative conversational LLM chatbot. Generative models on Twitter data often hallucinate support policies. Instead, I built a deterministic classifier that maps to pre-approved, safe support actions.
-- I did not use paid LLM APIs for training to prove that an end-to-end NLP pipeline can be built locally from scratch using Weak Supervision.
+- **The ML Classifier** handles intent prediction using a highly explainable, lightweight TF-IDF Vectorizer and Logistic Regression model trained via Weak Supervision.
+- **Explicit Escalation Reasoning** handles high-priority safety and escalation cases. The system returns an explicit `escalation_reason` string (e.g., "Customer explicitly requested a human", "Sensitive account/billing issue").
+- **Historical Examples** ground support replies, preventing the AI from hallucinating policies.
+- **LLM Generation** is entirely optional. It leverages an OpenAI integration to draft empathetic replies, but gracefully falls back to deterministic templates if the LLM is unavailable or unconfigured.
 
 ---
 
-## 2. Deliverables & Pipeline
+## 2. Intent Classification & Baselines
 
 - **Dataset:** 324,816 raw tweets filtered down to 168,785 clean AmazonHelp conversations.
-- **Weak Supervision Labeling:** Created ~22,000 labeled training examples using a deterministic keyword-based regex pipeline, bypassing manual labeling.
-- **Golden Evaluation Set:** 250 hand-labelled examples, stratified by text length to ensure varied complexity, manually reviewed and corrected.
 - **Model:** TF-IDF Vectorizer + Logistic Regression with class-weight balancing.
-- **Evaluation Harness:** Metrics calculated against the human-verified Golden Set.
-- **Application:** A runnable Streamlit dashboard (`app.py`) for live inference and API payload simulation.
+- **Golden Evaluation Set:** 250 hand-labelled examples with `expected_escalation` labels.
 
-### Running the Pipeline (Under 15 mins)
+**Baseline Comparisons:**
+We rigorously compared our model against two baselines (see `reports/final_model_comparison.csv`):
+1. **Trivial Baseline (Majority Class):** Achieves baseline macro F1 by guessing `other_unknown`.
+2. **Simple Baseline (Keyword Heuristics):** Achieves moderate accuracy by strictly matching keywords without ML.
+3. **Final Agent:** Outperforms both baselines significantly by combining tf-idf weighting with learned probabilities.
 
-**Install Dependencies:**
+---
+
+## 3. Human Escalation & Reasoning
+
+In customer support, safety is paramount. The system implements a strict routing threshold with explicit reasoning:
+
+- **Confidence Threshold:** Any intent predicted with `< 60% confidence` is immediately flagged for human review.
+- **Keyword Overrides:** Messages containing phrases like "real person", "human", or "stolen" trigger a rule-based safety override, instantly escalating with a detailed string reason.
+- **Evaluation:** Escalation logic was strictly evaluated against a ground-truth `expected_escalation` label in the Golden Set (see `reports/escalation_metrics.json`).
+
+---
+
+## 4. Evaluation Strategy (LLM Judge & Human)
+
+To evaluate reply generation, we implemented an **LLM-as-a-Judge** pipeline. A robust LLM evaluates a sample of generated replies against a fixed rubric across Helpfulness, Grounding, and Safety.
+
+To prove the validity of the LLM Judge without using synthetic ratings:
+1. We generated a template for **Genuine Human Evaluation** (`data/evaluation/human_reply_ratings_template.csv`).
+2. We provided a comparison script (`scripts/18_compare_human_llm_judge.py`) to calculate agreement metrics between the LLM Judge and a real human.
+
+---
+
+## 5. Reports & Decision Logs
+
+Extensive documentation is provided for the research and decision-making process:
+- `FINAL_RESEARCH_REPORT.md`: Comprehensive overview of the system, architecture, and results.
+- `DECISION_LOG.md`: Technical decision log covering modeling, evaluation, and fallback strategies.
+- `reports/failure_analysis.md`: Deep dive into real failure modes (e.g., sarcasm, OOD vocabulary), misleading headline metrics, and dataset limitations.
+- `reports/golden_set_quality_report.md` & `reports/baseline_rules.md`: Documentation of the dataset and simple baseline rules.
+
+---
+
+## 6. Reproducibility Instructions
+
+**1. Install Dependencies:**
 ```bash
 py -m pip install -r requirements.txt
 ```
 
-**Run the Live Agent Dashboard:**
+**2. Run Evaluation & Verification:**
+Verify the dataset, agent, and baselines:
+```bash
+py scripts/14_evaluate_agent.py
+py scripts/21_baseline_evaluation.py
+```
+
+**3. Run the LLM Judge & Human Comparison:**
+*(Requires OpenAI API Key in `.env`)*
+```bash
+py scripts/17_llm_judge_evaluation.py
+# After filling human_reply_ratings_template.csv manually:
+py scripts/18_compare_human_llm_judge.py
+```
+
+**4. Launch the Live Agent Dashboard:**
 ```bash
 py -m streamlit run app.py
 ```
-*Open your browser to `http://localhost:8501` to test the AI, view the analytics, and see the API integration.*
-
----
-
-## 3. Results vs. Baselines
-
-Our trained Logistic Regression model achieves **76.0% accuracy**. How does this compare to baselines?
-
-| Model | Accuracy | Macro F1 | Description |
-|---|---|---|---|
-| **Trivial Baseline (Majority Class)** | 71.6% | 10.4% | Always predicts `other_unknown`. |
-| **Simple Baseline (Keyword Rules)** | 62.4% | 34.2% | The exact regex heuristics used for weak labeling. |
-| **Trained AI Agent (TF-IDF + LR)** | **76.0%** | **41.1%** | Machine Learning model capturing broader n-gram context. |
-
-*Conclusion:* The ML model successfully generalizes beyond the hardcoded rules of the simple baseline, achieving a 14% accuracy jump over the heuristics.
-
----
-
-## 4. "What is misleading about my headline number?" (MANDATORY)
-
-My headline accuracy is **76.0%**, which sounds great for a simple TF-IDF model on messy Twitter data. **However, this number is highly misleading.**
-
-The dataset is severely imbalanced. Over 70% of the tweets in the Golden Set are `other_unknown` (general complaints, fragments, or out-of-scope banter). Because the model correctly guesses `other_unknown` most of the time, the overall accuracy is artificially inflated. 
-
-When we look at the **Macro F1-Score (41.1%)**, the truth is revealed: the model struggles significantly on minority classes like `prime_membership` and `account_billing`. If a customer asks about a rare topic, the model defaults to `other_unknown` to be "safe." Thus, the 76% accuracy masks the model's poor recall on specific, high-value customer intents.
-
----
-
-## 5. Failure Analysis: Top 5 Failure Modes
-
-1. **Implicit Complaints (Sarcasm/Context):** 
-   - *Example:* "Thanks Amazon, great job leaving my box in the rain." 
-   - *Hypothesis:* TF-IDF sees "Thanks" and "great job" and predicts `other_unknown` (positive sentiment), completely missing the implicit `delivery_issue`.
-2. **Short Fragments:**
-   - *Example:* "DM sent."
-   - *Hypothesis:* Zero semantic signal. The model defaults to `other_unknown`.
-3. **Compound Intents (Multiple issues):**
-   - *Example:* "My prime video isn't working and I want a refund for my late package."
-   - *Hypothesis:* The model gets confused by overlapping n-grams for `prime_membership`, `refund_return`, and `delivery_issue`, often resulting in a low-confidence misclassification.
-4. **Vocabulary Mismatch (Out of Vocabulary):**
-   - *Example:* "The courier yeeted my parcel."
-   - *Hypothesis:* Slang or rare verbs ("yeeted") were not present in the weak supervision training data, so the vectorizer ignores them.
-5. **Brand Ambiguity:**
-   - *Example:* "Is this compatible with Apple TV?"
-   - *Hypothesis:* Customer asking a product question, but the model has no catalog knowledge, routing it to `other_unknown` instead of `product_defect`.
-
----
-
-## 6. What I'd do next with one more week
-
-1. **Implement LLM-as-a-Judge:** I would use the HuggingFace API to route a sample of predictions to a lightweight LLM (like Llama-3-8B) to grade the logic of the Logistic Regression model, comparing AI-eval against my human Golden Set labels.
-2. **Embeddings instead of TF-IDF:** Swap the TF-IDF vectorizer for `sentence-transformers` (e.g., `all-MiniLM-L6-v2`) to capture semantic meaning rather than exact word matches, solving the vocabulary mismatch failure mode.
-3. **Active Learning UI:** Build a feedback loop into the Streamlit app where support agents can click "Wrong Intent" to instantly save the correction back to a retraining database.
-
----
-
-## 7. Decision Log
-
-1. **Targeted AmazonHelp:** Chosen because e-commerce has highly distinct, mutually exclusive intents (delivery, refund, product defect) compared to telecom or airlines.
-2. **Capped intents at 8:** Kept the taxonomy small to ensure high precision. 50+ intents would spread the weak supervision too thin.
-3. **Used Weak Supervision:** I did not have time to manually label 22,000 tweets. Writing regex heuristics to generate noisy labels was the only viable way to build a large enough training set for ML.
-4. **Stratified Golden Set by Length:** Random sampling over-indexes on short "DM sent" tweets. I binned tweets by length (short, med, long) before sampling the Golden Set to ensure the model was evaluated on complex paragraphs.
-5. **TF-IDF + Logistic Regression:** Chose a classical ML pipeline over fine-tuning a Transformer because it trains in seconds on a CPU, is highly explainable, and proves I understand fundamentals before reaching for an LLM API.
-6. **Class Weight Balancing:** Implemented `class_weight='balanced'` in the LR model to force it to pay attention to rare intents like `prime_membership`, rather than ignoring them to optimize global accuracy.
-7. **Safe Fallback Threshold (60%):** Decided that any prediction with <60% confidence must be routed to a human. In customer service, an incorrect automated action is much worse than a slight delay for a human agent.
-8. **Action-Oriented Output:** Rather than drafting a conversational reply (which risks hallucination), the Streamlit app outputs a "Suggested Action" (e.g., *Generate prepaid label*). This fits better into a modern Support Agent Copilot workflow (like Hiver's shared inbox).
-9. **Dark Mode UI:** Designed the Streamlit app specifically for dark mode with pastel highlights to mimic modern SaaS dashboards (reducing eye strain for support agents).
-10. **JSON API Simulation:** Added an API demo tab to the UI to explicitly demonstrate how this ML model would be consumed by backend microservices, showing architectural product thinking.
+*Open your browser to `http://localhost:8501` to test the AI, view the explicit escalation reasons, and inspect the API integration payload.*
